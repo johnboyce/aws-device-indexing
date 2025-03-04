@@ -48,11 +48,11 @@ resource "aws_iam_policy_attachment" "lambda_sns" {
 }
 
 resource "aws_lambda_function" "device_service" {
-  function_name   = "DeviceService"
-  handler         = "device_service.handler"
-  runtime         = "python3.11"
-  role            = aws_iam_role.lambda_role.arn
-  filename        = "${path.module}/../lambda.zip"
+  function_name    = "DeviceService"
+  handler          = "device_service.handler"
+  runtime          = "python3.11"
+  role             = aws_iam_role.lambda_role.arn
+  filename         = "${path.module}/../lambda.zip"
   source_code_hash = filebase64sha256("${path.module}/../lambda.zip")
 }
 

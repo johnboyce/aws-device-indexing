@@ -6,11 +6,7 @@ on:
       - main
     paths:
       - 'terraform/**'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'terraform/**'
+      - 'lambda/**'
 
 jobs:
   terraform:
@@ -26,6 +22,18 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install dependencies
+        run: |
+          cd lambda
+          pip install -r requirements.txt -t .
+        shell: bash
+
+      - name: Package Lambda function
+        run: |
+          cd lambda
+          zip -r ../lambda.zip .
+        shell: bash
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
@@ -34,8 +42,6 @@ jobs:
       - name: Terraform Init
         run: terraform init
         working-directory: terraform/
-        env:
-          AWS_REGION: ${{ secrets.AWS_REGION }}
 
       - name: Terraform Format
         run: terraform fmt -check
@@ -44,8 +50,6 @@ jobs:
       - name: Terraform Plan
         run: terraform plan
         working-directory: terraform/
-        env:
-          AWS_REGION: ${{ secrets.AWS_REGION }}
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main'

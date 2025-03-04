@@ -2,7 +2,7 @@ import json
 import boto3
 import time
 from datetime import datetime, timedelta
-# lambda function
+# lambda function john
 
 dynamodb = boto3.resource('dynamodb')
 sns = boto3.client('sns')

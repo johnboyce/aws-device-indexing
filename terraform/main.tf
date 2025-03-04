@@ -28,8 +28,8 @@ resource "aws_iam_role" "lambda_role" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "lambda.amazonaws.com" }
     }]
   })
@@ -49,10 +49,10 @@ resource "aws_iam_policy_attachment" "lambda_sns" {
 
 resource "aws_lambda_function" "device_service" {
   function_name    = "DeviceService"
-  handler         = "device_service.handler"
-  runtime         = "python3.11"
-  role            = aws_iam_role.lambda_role.arn
-  filename        = "lambda.zip"
+  handler          = "device_service.handler"
+  runtime          = "python3.11"
+  role             = aws_iam_role.lambda_role.arn
+  filename         = "lambda.zip"
   source_code_hash = filebase64sha256("lambda.zip")
 }
 
@@ -87,14 +87,14 @@ resource "aws_api_gateway_stage" "device_stage" {
 }
 
 resource "aws_cloudwatch_event_rule" "device_checker" {
-  name        = "DeviceOnlineCheck"
-  description = "Periodically checks if a device is online"
+  name                = "DeviceOnlineCheck"
+  description         = "Periodically checks if a device is online"
   schedule_expression = "rate(1 minute)"
 }
 
 resource "aws_cloudwatch_event_target" "trigger_lambda" {
-  rule      = aws_cloudwatch_event_rule.device_checker.name
-  arn       = aws_lambda_function.device_service.arn
+  rule = aws_cloudwatch_event_rule.device_checker.name
+  arn  = aws_lambda_function.device_service.arn
 }
 
 resource "aws_lambda_permission" "allow_cloudwatch" {

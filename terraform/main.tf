@@ -18,3 +18,77 @@ resource "aws_dynamodb_table" "device_mapping" {
     type = "S"
   }
 }
+
+resource "aws_sns_topic" "device_notifications" {
+  name = "DeviceNotificationTopic"
+}
+
+resource "aws_iam_role" "lambda_role" {
+  name = "lambda_execution_role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_policy_attachment" "lambda_dynamodb_sns" {
+  name       = "lambda_dynamodb_sns_policy"
+  roles      = [aws_iam_role.lambda_role.name]
+  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+}
+
+resource "aws_iam_policy_attachment" "lambda_sns" {
+  name       = "lambda_sns_policy"
+  roles      = [aws_iam_role.lambda_role.name]
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSNSFullAccess"
+}
+
+resource "aws_lambda_function" "device_service" {
+  function_name    = "DeviceService"
+  handler         = "device_service.handler"
+  runtime         = "python3.9"
+  role            = aws_iam_role.lambda_role.arn
+  filename        = "lambda.zip"
+  source_code_hash = filebase64sha256("lambda.zip")
+}
+
+resource "aws_api_gateway_rest_api" "device_api" {
+  name        = "DeviceAPI"
+  description = "API for managing devices and phone numbers"
+}
+
+resource "aws_api_gateway_resource" "device_resource" {
+  rest_api_id = aws_api_gateway_rest_api.device_api.id
+  parent_id   = aws_api_gateway_rest_api.device_api.root_resource_id
+  path_part   = "device"
+}
+
+resource "aws_api_gateway_method" "device_post" {
+  rest_api_id   = aws_api_gateway_rest_api.device_api.id
+  resource_id   = aws_api_gateway_resource.device_resource.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_cloudwatch_event_rule" "device_checker" {
+  name        = "DeviceOnlineCheck"
+  description = "Periodically checks if a device is online"
+  schedule_expression = "rate(1 minute)"
+}
+
+resource "aws_cloudwatch_event_target" "trigger_lambda" {
+  rule      = aws_cloudwatch_event_rule.device_checker.name
+  arn       = aws_lambda_function.device_service.arn
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch" {
+  statement_id  = "AllowExecutionFromCloudWatch"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.device_service.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.device_checker.arn
+}

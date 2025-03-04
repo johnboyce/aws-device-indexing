@@ -7,7 +7,7 @@ dynamodb = boto3.resource('dynamodb')
 sns = boto3.client('sns')
 
 device_table = dynamodb.Table('DevicePhoneMapping')
-sns_topic_arn = "arn:aws:sns:us-east-1:123456789012:DeviceNotificationTopic"
+sns_topic_arn = "arn:aws:sns:us-east-1:020157571320:DeviceNotificationTopic"
 
 
 def handler(event, context):

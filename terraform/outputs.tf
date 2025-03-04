@@ -5,7 +5,7 @@ output "sns_topic_arn" {
 
 output "api_gateway_url" {
   description = "The invoke URL for the API Gateway"
-  value       = aws_api_gateway_deployment.device_api.invoke_url
+  value       = "https://${aws_api_gateway_rest_api.device_api.id}.execute-api.${var.aws_region}.amazonaws.com/${aws_api_gateway_stage.device_stage.stage_name}/"
 }
 
 output "dynamodb_table_name" {

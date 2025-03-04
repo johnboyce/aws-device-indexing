@@ -1,43 +1,74 @@
 import json
 import boto3
-import time
-from datetime import datetime, timedelta
-# lambda function john
+import os
+import logging
+from botocore.exceptions import BotoCoreError, ClientError
 
-dynamodb = boto3.resource('dynamodb')
-sns = boto3.client('sns')
+# Configure logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
-device_table = dynamodb.Table('DevicePhoneMapping')
-sns_topic_arn = "arn:aws:sns:us-east-1:020157571320:DeviceNotificationTopic"
+# Initialize AWS clients
+dynamodb = boto3.resource("dynamodb")
+sns = boto3.client("sns")
 
+table_name = os.getenv("DYNAMODB_TABLE", "DevicePhoneMapping")
+topic_arn = os.getenv("SNS_TOPIC_ARN")
 
-def handler(event, context):
-    path = event.get("pathParameters", {})
-    http_method = event["httpMethod"]
+table = dynamodb.Table(table_name)
 
-    if http_method == "POST" and "device_id" in path:
-        return add_phone_number(event)
-    elif http_method == "GET" and "device_id" in path:
-        return get_phone_numbers(event)
-    return {"statusCode": 400, "body": "Invalid Request"}
+def lambda_handler(event, context):
+    try:
+        logger.info("Received event: %s", json.dumps(event))
 
+        http_method = event.get("httpMethod")
+        path = event.get("pathParameters", {})
+        body = json.loads(event.get("body", "{}"))
 
-def add_phone_number(event):
-    body = json.loads(event["body"])
-    device_id = event["pathParameters"]["device_id"]
-    phone_number = body["phone_number"]
+        if http_method == "POST" and "device_id" in body and "phone_number" in body:
+            return add_device_phone_mapping(body["device_id"], body["phone_number"])
 
-    device_table.put_item(Item={
-        "device_id": device_id,
-        "phone_number": phone_number,
-        "timestamp": int(time.time())
-    })
+        elif http_method == "GET" and "device_id" in path:
+            return get_device_phone_mappings(path["device_id"])
 
-    return {"statusCode": 200, "body": json.dumps({"message": "Phone number added."})}
+        else:
+            return response(400, {"error": "Invalid request"})
 
+    except json.JSONDecodeError as e:
+        logger.error("JSON decoding error: %s", str(e))
+        return response(400, {"error": "Invalid JSON format"})
 
-def get_phone_numbers(event):
-    device_id = event["pathParameters"]["device_id"]
-    response = device_table.query(KeyConditionExpression=boto3.dynamodb.conditions.Key("device_id").eq(device_id))
-    phone_numbers = [item["phone_number"] for item in response.get("Items", [])]
-    return {"statusCode": 200, "body": json.dumps({"phone_numbers": phone_numbers})}
+    except Exception as e:
+        logger.error("Unhandled error: %s", str(e), exc_info=True)
+        return response(500, {"error": str(e)})
+
+def add_device_phone_mapping(device_id, phone_number):
+    try:
+        table.put_item(Item={"device_id": device_id, "phone_number": phone_number})
+
+        if topic_arn:
+            sns.publish(TopicArn=topic_arn, Message=f"Device {device_id} is associated with {phone_number}")
+
+        return response(201, {"message": "Mapping added successfully"})
+
+    except (BotoCoreError, ClientError) as e:
+        logger.error("DynamoDB or SNS error: %s", str(e), exc_info=True)
+        return response(500, {"error": "Failed to process request"})
+
+def get_device_phone_mappings(device_id):
+    try:
+        result = table.query(KeyConditionExpression="device_id = :id", ExpressionAttributeValues={":id": device_id})
+        phone_numbers = [item["phone_number"] for item in result.get("Items", [])]
+
+        return response(200, {"device_id": device_id, "phone_numbers": phone_numbers})
+
+    except (BotoCoreError, ClientError) as e:
+        logger.error("DynamoDB query error: %s", str(e), exc_info=True)
+        return response(500, {"error": "Failed to fetch device mappings"})
+
+def response(status_code, body):
+    return {
+        "statusCode": status_code,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps(body)
+    }

@@ -1,26 +1,40 @@
 name: Lambda Deployment
+
 on:
   push:
     branches:
       - main
     paths:
       - 'lambda/**'
+
 jobs:
   deploy_lambda:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v3
         with:
-          python-version: '3.9'
-      - run: |
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
           cd lambda
           pip install -r requirements.txt -t .
-      - run: |
+
+      - name: Package Lambda function
+        run: |
           cd lambda
           zip -r ../lambda.zip .
-      - run: |
-          aws lambda update-function-code             --function-name DeviceService             --zip-file fileb://lambda.zip
+
+      - name: Deploy Lambda to AWS
+        run: |
+          aws lambda update-function-code \
+            --function-name DeviceService \
+            --zip-file fileb://lambda.zip
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
